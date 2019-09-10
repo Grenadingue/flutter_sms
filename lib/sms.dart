@@ -295,7 +295,7 @@ class SmsSender {
   final EventChannel _stateChannel;
   Map<int, SmsMessage> _sentMessages;
   int _sentId = 0;
-  final StreamController<SmsMessage> _deliveredStreamController =
+  final StreamController<SmsMessage> _statusChangeStreamController =
       new StreamController<SmsMessage>();
 
   factory SmsSender() {
@@ -349,10 +349,13 @@ class SmsSender {
     await _channel.invokeMethod("sendSMS", map);
     msg.date = new DateTime.now();
 
+    _statusChangeStreamController.add(msg);
+
     return msg;
   }
 
-  Stream<SmsMessage> get onSmsDelivered => _deliveredStreamController.stream;
+  Stream<SmsMessage> get onSmsStatusChanged =>
+      _statusChangeStreamController.stream;
 
   void _onSmsStateChanged(dynamic stateChange) {
     int id = stateChange['sentId'];
@@ -361,18 +364,20 @@ class SmsSender {
         case 'sent':
           {
             _sentMessages[id].state = SmsMessageState.Sent;
+            _statusChangeStreamController.add(_sentMessages[id]);
             break;
           }
         case 'delivered':
           {
             _sentMessages[id].state = SmsMessageState.Delivered;
-            _deliveredStreamController.add(_sentMessages[id]);
+            _statusChangeStreamController.add(_sentMessages[id]);
             _sentMessages.remove(id);
             break;
           }
         case 'fail':
           {
             _sentMessages[id].state = SmsMessageState.Fail;
+            _statusChangeStreamController.add(_sentMessages[id]);
             _sentMessages.remove(id);
             break;
           }
